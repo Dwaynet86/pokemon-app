@@ -1,0 +1,12 @@
+Flask>=3.1
+Flask-WTF>=1.2
+Flask-Login>=0.6
+psycopg[binary,pool]>=3.2
+Pillow>=10.4
+pillow-heif>=0.18
+python-dotenv>=1.0
+requests>=2.32
+numpy>=1.26
+opencv-python-headless>=4.10
+gunicorn>=22.0
+pytest>=8.0

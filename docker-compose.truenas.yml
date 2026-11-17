@@ -1,0 +1,52 @@
+# Pokemon card collection for TrueNAS SCALE (Apps -> Discover Apps -> Custom App -> "Install via YAML").
+# Also works with plain `docker compose up -d`.
+#
+# BEFORE YOU PASTE THIS, change every line marked CHANGE:
+#   - the image name (your GitHub owner/repo, all lowercase)
+#   - the two passwords and the SECRET_KEY
+#   - the /mnt/... paths (create the two datasets first, see docker/TRUENAS.md)
+
+services:
+  # One-shot helper: makes the two data folders writable by the users the containers run as, then exits.
+  perms:
+    image: alpine:3.20
+    restart: "no"
+    command: sh -c "chown -R 999:999 /pgdata && chown -R 568:568 /uploads"
+    volumes:
+      - /mnt/tank/apps/pokemon-cards/db:/pgdata                  # CHANGE: your pool and dataset
+      - /mnt/tank/apps/pokemon-cards/uploads:/uploads            # CHANGE
+
+  db:
+    image: postgres:17
+    restart: unless-stopped
+    depends_on:
+      perms: { condition: service_completed_successfully }
+    environment:
+      POSTGRES_USER: pokemon
+      POSTGRES_PASSWORD: CHANGE_ME_DB_PASSWORD                   # CHANGE (letters and numbers keep the URL below simple)
+      POSTGRES_DB: pokemon
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - /mnt/tank/apps/pokemon-cards/db:/var/lib/postgresql/data # CHANGE
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pokemon -d pokemon"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  web:
+    image: ghcr.io/OWNER/REPO:latest                             # CHANGE: e.g. ghcr.io/dwaynet86/pokemon-cards:latest
+    pull_policy: always                                          # every (re)start checks GitHub for a newer image
+    restart: unless-stopped
+    depends_on:
+      db: { condition: service_healthy }
+    ports:
+      - "30080:8000"                                             # open http://<truenas-ip>:30080
+    environment:
+      SECRET_KEY: CHANGE_ME_LONG_RANDOM_STRING                   # CHANGE: python -c "import secrets; print(secrets.token_hex(32))"
+      DATABASE_URL: postgresql://pokemon:CHANGE_ME_DB_PASSWORD@db:5432/pokemon   # CHANGE the password to match
+      POKEWALLET_API_KEY: ""                                     # optional (price fallback)
+      TRUST_PROXY: "0"                                           # set to "1" behind a reverse proxy
+      SESSION_COOKIE_SECURE: "0"                                 # set to "1" once you serve it over HTTPS
+    volumes:
+      - /mnt/tank/apps/pokemon-cards/uploads:/data/uploads       # CHANGE: artwork cache survives updates

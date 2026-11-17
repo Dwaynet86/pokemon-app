@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf_field, art %}
+{% block title %}{{ card.name }} · {{ collection.name }}{% endblock %}
+
+{% block content %}
+<a class="back" href="{{ url_for('cards.index') }}">← Gallery</a>
+{% if card.set_id %}<span class="muted"> · </span><a class="back" href="{{ url_for('cards.set_detail', set_pk=card.set_id) }}">← {{ card.set_name or 'Expansion' }}</a>{% endif %}
+{% if prev_card or next_card %}
+<nav class="card-nav" aria-label="Cards in {{ card.set_name or 'this expansion' }}">
+  {% if prev_card %}<a class="btn" rel="prev" href="{{ url_for('cards.card', card_id=prev_card.id) }}" title="{{ prev_card.name }}">← {{ prev_card.card_number or prev_card.local_id }} {{ prev_card.name }}</a>{% else %}<span></span>{% endif %}
+  {% if next_card %}<a class="btn" rel="next" href="{{ url_for('cards.card', card_id=next_card.id) }}" title="{{ next_card.name }}">{{ next_card.card_number or next_card.local_id }} {{ next_card.name }} →</a>{% endif %}
+</nav>
+{% endif %}
+<div class="detail" style="margin-top:1rem">
+  <div>
+    <span class="card-frame" style="max-width:26rem">{{ art(card.id, size="high") }}</span>
+    {% if can_edit %}
+    <details class="artwork-tools" {{ 'open' if art_missing }}>
+      <summary>{{ 'No artwork found: add your own' if art_missing else 'Artwork wrong or missing?' }}</summary>
+      <form method="post" action="{{ url_for('cards.set_artwork', card_id=card.id) }}" enctype="multipart/form-data" class="form">
+        {{ csrf_field() }}
+        <label for="art-file">Upload an image</label>
+        <input id="art-file" type="file" name="image" accept="image/*">
+        <label for="art-url">or paste a link to one</label>
+        <input id="art-url" type="url" name="url" placeholder="https://…">
+        <div class="actions"><button class="btn btn-primary" type="submit">Use this artwork</button></div>
+        <p class="hint">Saved for everyone on this server.</p>
+      </form>
+      <form method="post" action="{{ url_for('cards.reset_artwork', card_id=card.id) }}">
+        {{ csrf_field() }}<button class="btn" type="submit">Download again from the sources</button>
+      </form>
+    </details>
+    {% endif %}
+  </div>
+
+  <div class="detail-body">
+    <h1>{{ card.name }}</h1>
+    <dl class="facts">
+      {% if card.set_name %}<div><dt>Expansion</dt><dd>{% if card.set_id %}<a href="{{ url_for('cards.set_detail', set_pk=card.set_id) }}">{{ card.set_name }}</a>{% else %}{{ card.set_name }}{% endif %}{% if card.set_code %} ({{ card.set_code }}){% endif %}</dd></div>{% endif %}
+      {% if card.card_number %}<div><dt>Number</dt><dd>{{ card.card_number }}</dd></div>{% endif %}
+      {% if card.rarity %}<div><dt>Rarity</dt><dd>{{ card.rarity }}</dd></div>{% endif %}
+      {% if card.card_type %}<div><dt>Type</dt><dd>{{ card.card_type }}{% if card.stage %} · {{ card.stage }}{% endif %}</dd></div>{% endif %}
+      {% if card.hp %}<div><dt>HP</dt><dd>{{ card.hp }}</dd></div>{% endif %}
+      {% if card.release_date %}<div><dt>Released</dt><dd>{{ card.release_date|pretty_date }}</dd></div>{% endif %}
+    </dl>
+
+    {% if card.prices %}
+    <h2>Market price</h2>
+    <table class="price-table">
+      {% for v, p in card.prices.items() %}<tr><th scope="row">{{ v }}</th><td>{{ p|money if p is not none else '—' }}</td></tr>{% endfor %}
+    </table>
+    {% endif %}
+    {% if True %}
+      <p class="hint">{% if card.prices_updated_at %}{% if not card.prices %}No price found. {% endif %}Checked {{ card.prices_updated_at|pretty_date }} (TCGplayer, USD, via {{ 'PokeWallet' if card.pw_id else 'TCGdex' }}).{% else %}Price not looked up yet.{% endif %}
+      {% if can_edit %}
+      <form method="post" action="{{ url_for('cards.refresh_price', card_id=card.id) }}" style="display:inline">{{ csrf_field() }}<button class="btn" type="submit" title="One TCGdex request (PokeWallet is only asked if TCGdex has no price)">Refresh price</button></form>
+      {% endif %}</p>
+    {% endif %}
+
+    <h2>Your copies</h2>
+    {% for c in copies %}
+    <form class="copy" method="post" action="{{ url_for('cards.update_copy', owned_id=c.id) }}">
+      {{ csrf_field() }}
+      <div><label for="v{{ c.id }}">Variant</label>
+        <select id="v{{ c.id }}" name="variant" {{ 'disabled' if not can_edit }}>
+          {% for v in variants %}<option value="{{ v }}" {{ 'selected' if v == c.variant }}>{{ v }}</option>{% endfor %}
+          {% if c.variant not in variants %}<option value="{{ c.variant }}" selected>{{ c.variant }}</option>{% endif %}
+        </select></div>
+      <div><label for="c{{ c.id }}">Condition</label>
+        <select id="c{{ c.id }}" name="condition" {{ 'disabled' if not can_edit }}>
+          {% for o in conditions %}<option value="{{ o }}" {{ 'selected' if o == c.condition }}>{{ o }}</option>{% endfor %}
+        </select></div>
+      <div><label for="q{{ c.id }}">Quantity</label>
+        <input id="q{{ c.id }}" name="quantity" type="number" min="1" max="999" value="{{ c.quantity }}" {{ 'disabled' if not can_edit }}></div>
+      <div><label for="n{{ c.id }}">Notes</label>
+        <input id="n{{ c.id }}" name="notes" type="text" maxlength="500" value="{{ c.notes or '' }}" {{ 'disabled' if not can_edit }}></div>
+      {% if can_edit %}
+      <div class="copy-actions">
+        <button class="btn btn-primary" type="submit">Save</button>
+        <button class="btn btn-danger" type="submit" formaction="{{ url_for('cards.delete_copy', owned_id=c.id) }}" data-confirm="Remove this copy from your collection?">Remove</button>
+      </div>
+      {% endif %}
+    </form>
+    {% else %}
+    <p class="muted">You don't own this card yet.</p>
+    {% if can_edit %}
+    <form method="post" action="{{ url_for('cards.toggle_wanted', card_id=card.id) }}">
+      {{ csrf_field() }}
+      <button class="btn" type="submit">{{ '★ On your wanted list. Remove' if wanted else '☆ Add to wanted list' }}</button>
+    </form>
+    {% elif wanted %}<p class="muted">★ On the wanted list</p>{% endif %}
+    {% endfor %}
+
+    {% if can_edit %}
+    <form class="copy" method="post" action="{{ url_for('cards.add_confirm') }}" style="border-top:1px solid var(--line)">
+      {{ csrf_field() }}
+      <input type="hidden" name="card_id" value="{{ card.id }}">
+      <input type="hidden" name="back" value="card">
+      <div><label for="nv">Variant</label>
+        <select id="nv" name="variant">{% for v in variants %}<option value="{{ v }}">{{ v }}</option>{% endfor %}</select></div>
+      <div><label for="nc">Condition</label>
+        <select id="nc" name="condition">{% for o in conditions %}<option value="{{ o }}">{{ o }}</option>{% endfor %}</select></div>
+      <div><label for="nq">Quantity</label><input id="nq" name="quantity" type="number" min="1" max="999" value="1"></div>
+      <div class="copy-actions"><button class="btn btn-primary" type="submit">Add {{ 'another' if copies else 'to collection' }}</button></div>
+    </form>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

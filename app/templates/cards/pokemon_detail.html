@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% from "_macros.html" import view_tabs, art, finish_badges %}
+{% block title %}{{ sp.name }} · {{ collection.name }}{% endblock %}
+
+{% block content %}
+{{ view_tabs('pokemon') }}
+<a class="back" href="{{ url_for('cards.pokemon', gen=sp.generation) }}">← All Pokémon</a>
+<div style="display:flex;align-items:center;gap:1rem;margin:.5rem 0 1.5rem">
+  <img class="dex-img" alt="" src="{{ sp.dex_number|sprite }}" style="margin:0">
+  <div><h1 style="margin:0">{{ sp.name }}</h1><p class="lede" style="margin:0">#{{ '%04d'|format(sp.dex_number) }} · Generation {{ sp.generation }}</p></div>
+</div>
+
+{% if cards %}
+<p class="count">{{ cards|selectattr('qty')|list|length }} of {{ cards|length }} known cards collected</p>
+<ul class="grid">
+  {% for c in cards %}
+  <li>
+    <a class="tile {{ 'owned' if c.qty else 'missing' }}" href="{{ url_for('cards.card', card_id=c.id) }}">
+      <span class="card-frame">
+        {{ art(c.id) }}
+        {% if c.qty %}<span class="check-badge">{{ '✓' if c.qty == 1 else c.qty }}</span>{{ finish_badges(c.variants, c.owned_variants) }}{% endif %}
+      </span>
+      <span class="tile-name">{{ c.name }}</span>
+      <span class="tile-meta">{{ c.set_name or '' }}{% if c.card_number %} · {{ c.card_number }}{% endif %}</span>
+    </a>
+  </li>
+  {% endfor %}
+</ul>
+<p class="hint">Only cards this app has already loaded are listed. Open an <a href="{{ url_for('cards.sets') }}">expansion</a> to load all of its cards.</p>
+{% else %}
+<div class="empty">
+  <h1>No {{ sp.name }} cards loaded yet.</h1>
+  <p>Cards appear here once you add one, or open an expansion that contains it.</p>
+  <a class="btn" href="{{ url_for('cards.sets') }}">Browse expansions</a>
+</div>
+{% endif %}
+{% endblock %}

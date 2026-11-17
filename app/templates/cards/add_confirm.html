@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf_field %}
+{% block title %}Confirm card · {{ collection.name }}{% endblock %}
+
+{% block content %}
+<h1>{{ 'Which card is this?' if candidates else 'No match found' }}</h1>
+
+<div class="confirm">
+  <div>
+    {% if token %}
+      <img class="photo-preview" alt="Your photo (deleted once you confirm)" src="{{ url_for('cards.add_photo', token=token) }}">
+      <form method="post" action="{{ url_for('cards.add_cancel') }}">{{ csrf_field() }}<input type="hidden" name="token" value="{{ token }}"><button class="btn" type="submit">Discard photo</button></form>
+    {% endif %}
+    {% if candidates %}<img id="cand-art" class="art-preview" alt="" src="{{ url_for('art.card_art', card_id=candidates[0].card.id) }}" style="margin-top:1rem">{% endif %}
+  </div>
+
+  <div>
+    {% if scan and scan.reading %}
+    <p class="reading">Scan matched: <strong>{{ scan.reading.name }}</strong>
+      {%- if scan.reading.number %} · {{ scan.reading.number }}{% endif %}{% if scan.reading.set_name %} · {{ scan.reading.set_name }}{% elif scan.reading.set_code %} · {{ scan.reading.set_code }}{% endif %}
+      {%- if scan.top_score is not none %} · {{ scan.top_score|round|int }}% match{% endif %}
+      {%- if not scan.crop_found %}<br><span class="muted">The card's edges weren't found in the photo, so the whole photo was scanned. A plain background and the card filling most of the frame work best.</span>{% endif %}</p>
+    {% endif %}
+
+    {% if candidates %}
+    <form method="post" action="{{ url_for('cards.add_confirm') }}" id="confirm-form">
+      {{ csrf_field() }}
+      <input type="hidden" name="token" value="{{ token or '' }}">
+      {% if not confident %}<p class="hint" style="margin-bottom:.75rem">Not sure which printing this is. Compare the number and expansion with your card.</p>{% endif %}
+      <ul class="candidates">
+        {% for c in candidates %}
+        <li>
+          <label class="candidate">
+            <input type="radio" name="card_id" value="{{ c.card.id }}" {{ 'checked' if loop.first }}
+                   data-variants='{{ variants_by_card[c.card.id]|tojson }}' data-art="{{ url_for('art.card_art', card_id=c.card.id) }}">
+            <span>
+              <span class="c-main">{{ c.card.name }}{% if c.card.card_number %} · {{ c.card.card_number }}{% endif %}</span>
+              <span class="c-sub">{{ c.card.set_name or 'Unknown expansion' }}{% if c.card.rarity %} · {{ c.card.rarity }}{% endif %}</span>
+            </span>
+            {% if c.reasons %}<span class="match">{{ c.reasons|join(', ') }}</span>{% endif %}
+          </label>
+        </li>
+        {% endfor %}
+      </ul>
+
+      <div class="form">
+        <div class="row">
+          <div><label for="variant">Variant</label>
+            <select id="variant" name="variant" data-default="{{ default_variant }}"></select></div>
+          <div><label for="condition">Condition</label>
+            <select id="condition" name="condition">{% for o in conditions %}<option value="{{ o }}">{{ o }}</option>{% endfor %}</select></div>
+        </div>
+        <div class="row">
+          <div><label for="quantity">Copies</label><input id="quantity" name="quantity" type="number" min="1" max="999" value="1" style="width:100%"></div>
+          <div><label for="notes">Notes</label><input id="notes" name="notes" type="text" maxlength="500"></div>
+        </div>
+        <div class="actions"><button class="btn btn-primary" type="submit">Add to collection</button></div>
+      </div>
+    </form>
+    {% else %}
+    <p>{{ 'Nothing in the published card data matched that photo.' if scan else 'No cards found.' }} Try searching by name, or name and number.</p>
+    {% endif %}
+
+    <form class="form" method="get" action="{{ url_for('cards.add_search') }}" style="margin-top:1.5rem;padding-top:1rem;border-top:1px solid var(--line)">
+      <input type="hidden" name="token" value="{{ token or '' }}">
+      <label for="q">{{ 'Not right? Search again' if candidates else 'Search' }}</label>
+      <div class="inline-form"><input id="q" name="q" type="search" value="{{ query }}" style="flex:1" required><button class="btn" type="submit">Search</button></div>
+    </form>
+  </div>
+</div>
+{% endblock %}

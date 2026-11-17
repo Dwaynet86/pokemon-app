@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf_field %}
+{% block title %}Add a card · {{ collection.name }}{% endblock %}
+
+{% block content %}
+<h1>Add a card</h1>
+<p class="lede">Photograph the front of a card. It's scanned, matched to the published card data, and you confirm before anything is saved.</p>
+
+<div class="add-grid">
+  <form class="panel form" method="post" action="{{ url_for('cards.add_identify') }}" enctype="multipart/form-data">
+    {{ csrf_field() }}
+    <h2>From a photo</h2>
+    <img id="preview-img" class="photo-preview" alt="Preview of the chosen photo" hidden>
+    <button class="btn btn-camera" type="button" id="camera-btn">Take photo</button>
+    <input id="camera" type="file" accept="image/*" capture="environment" hidden>
+    <label for="photo">Photo of the card</label>
+    <input id="photo" name="photo" type="file" accept="image/*" required>
+    <p class="hint">Lay the card flat, upright, on a plain background in good light, with the whole card in frame. Avoid glare. The card is cropped and sent to the TCG Tracking scan service (no account needed); your photo stays on this server and is deleted as soon as you confirm the card.</p>
+    <div class="actions"><button class="btn btn-primary" type="submit">Identify card</button></div>
+  </form>
+
+  <form class="panel form" method="get" action="{{ url_for('cards.add_search') }}">
+    <h2>Search instead</h2>
+    <label for="q">Name, optionally with number</label>
+    <input id="q" name="q" type="search" placeholder="e.g. Charizard ex 125" required>
+    <div class="actions"><button class="btn" type="submit">Search</button></div>
+    {% if prices and api_hour_left is not none %}<p class="budget">PokeWallet fallback lookups left this hour: {{ api_hour_left }}{% if api_hour_limit %} of {{ api_hour_limit }}{% endif %}</p>{% endif %}
+  </form>
+</div>
+{% endblock %}

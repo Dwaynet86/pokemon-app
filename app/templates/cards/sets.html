@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf_field, view_tabs, progress, master_toggle %}
+{% block title %}Expansions · {{ collection.name }}{% endblock %}
+
+{% block content %}
+{{ view_tabs('sets') }}
+
+<form class="toolbar" method="get" role="search">
+  <input type="search" name="q" value="{{ search }}" placeholder="Search expansions" aria-label="Search expansions">
+  {% if series_options %}
+  <select name="series" aria-label="Series" data-autosubmit>
+    <option value="">All series</option>
+    {% for s in series_options %}<option value="{{ s }}" {{ 'selected' if s == series }}>{{ s }}</option>{% endfor %}
+  </select>
+  {% endif %}
+  <input type="hidden" name="mine" value="0">
+  <label class="check" style="display:flex;gap:.5rem;align-items:center"><input type="checkbox" name="mine" value="1" {{ 'checked' if mine }} data-autosubmit> Only expansions I collect</label>
+</form>
+{% if nothing_collected %}
+<p class="hint" style="margin:-.75rem 0 1rem">You haven't added any cards yet, so every expansion is shown. Once you add one, this page lists just the expansions you collect.</p>
+{% endif %}
+
+{% if sets %}
+  <div class="list-head">
+    <p class="count">{{ sets|length }} expansion{{ '' if sets|length == 1 else 's' }}</p>
+    {{ master_toggle(collection.master_set, can_edit, request.full_path.rstrip('?')) }}
+    {% if can_edit %}
+    <form method="post" action="{{ url_for('cards.refresh_sets') }}">{{ csrf_field() }}<button class="btn" type="submit">Refresh list</button></form>
+    {% endif %}
+  </div>
+  <section class="panel wide" style="max-width:none;padding-top:.5rem;padding-bottom:.5rem">
+    {% for s in sets %}
+    <div class="set-row">
+      <div class="set-id">
+        {% if s.logo_url %}<img class="set-logo" loading="lazy" alt="" src="{{ s.logo_url }}">{% endif %}
+        <div>
+          <a class="set-name" href="{{ url_for('cards.set_detail', set_pk=s.id) }}">{{ s.name }}</a>
+          <small>{{ s.set_code or '' }}{% if s.series %}{{ ' · ' if s.set_code }}{{ s.series }}{% endif %}{% if s.release_date %} · {{ s.release_date|pretty_date }}{% endif %}{% if s.images_synced_at %} · stored locally{% endif %}</small>
+        </div>
+      </div>
+      <div>
+        <div class="progress-label">
+          {% if s.owned %}<span class="set-value" title="Market value of the cards you own from this expansion">Est. value {{ s.value|money }}</span>{% else %}<span></span>{% endif %}
+          <span>{{ s.owned }}{% if s.total %} / {{ s.total }}{% endif %}{{ ' finishes' if collection.master_set and s.total }}</span>
+        </div>
+        {{ progress(s.owned, s.total or 0) }}
+      </div>
+      <a class="btn" href="{{ url_for('cards.set_detail', set_pk=s.id) }}">Open</a>
+    </div>
+    {% endfor %}
+  </section>
+{% else %}
+  <div class="empty">
+    {% if mine and not search and not series %}
+      <h1>No expansions yet.</h1>
+      <p>Expansions appear here once you add a card from them.</p>
+      <a class="btn" href="{{ url_for('cards.sets', mine=0) }}">Browse all expansions</a>
+    {% elif search or series or mine %}
+      <h1>No expansions match.</h1>
+      <a class="btn" href="{{ url_for('cards.sets') }}">Clear filters</a>
+    {% else %}
+      <h1>No expansions loaded yet.</h1>
+      {% if can_edit %}
+      <form method="post" action="{{ url_for('cards.refresh_sets') }}">{{ csrf_field() }}<button class="btn btn-primary" type="submit">Load expansions</button></form>
+      {% endif %}
+    {% endif %}
+  </div>
+{% endif %}
+{% endblock %}

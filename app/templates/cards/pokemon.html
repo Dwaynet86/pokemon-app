@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% from "_macros.html" import view_tabs, progress %}
+{% block title %}Pokémon · {{ collection.name }}{% endblock %}
+
+{% block content %}
+{{ view_tabs('pokemon') }}
+
+<div class="panel" style="max-width:none">
+  <div class="progress-label"><span><strong>{{ caught }}</strong> of {{ total }} Pokémon{% if gen %} in {{ generations[gen] }}{% endif %} collected</span><span>{{ ((caught * 100 / total)|round|int) if total else 0 }}%</span></div>
+  {{ progress(caught, total) }}
+</div>
+
+<form class="toolbar" method="get" role="search">
+  <input type="search" name="q" value="{{ search }}" placeholder="Search Pokémon" aria-label="Search Pokémon">
+  <select name="gen" aria-label="Generation" data-autosubmit>
+    <option value="">All generations</option>
+    {% for n, name in generations.items() %}<option value="{{ n }}" {{ 'selected' if n == gen }}>Gen {{ n }} · {{ name }}</option>{% endfor %}
+  </select>
+  <select name="show" aria-label="Show" data-autosubmit>
+    <option value="all" {{ 'selected' if show == 'all' }}>All</option>
+    <option value="have" {{ 'selected' if show == 'have' }}>Collected</option>
+    <option value="missing" {{ 'selected' if show == 'missing' }}>Missing</option>
+  </select>
+</form>
+
+<ul class="dex">
+  {% for s in species %}
+  <li>
+    <a class="dex-tile {{ 'owned' if s.cards else 'missing' }}" href="{{ url_for('cards.pokemon_detail', dex=s.dex_number) }}">
+      <img class="dex-img" loading="lazy" alt="" src="{{ s.dex_number|sprite }}">
+      <span class="dex-no">#{{ '%04d'|format(s.dex_number) }}</span>
+      <span class="dex-name">{{ s.name }}</span>
+      {% if s.cards %}<span class="qty-badge" title="{{ s.cards }} different card{{ '' if s.cards == 1 else 's' }}, {{ s.copies }} cop{{ 'y' if s.copies == 1 else 'ies' }}">{{ s.cards }}</span>{% endif %}
+    </a>
+  </li>
+  {% else %}
+  <li class="muted">No Pokémon match.</li>
+  {% endfor %}
+</ul>
+{% endblock %}

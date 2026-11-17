@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% from "_macros.html" import view_tabs, art, finish_badges %}
+{% block title %}Gallery · {{ collection.name }}{% endblock %}
+
+{% block content %}
+{{ view_tabs('gallery') }}
+
+<dl class="stats-strip">
+  <div><dt>Cards</dt><dd>{{ stats.copies }}</dd></div>
+  <div><dt>Unique</dt><dd>{{ stats.unique_cards }}</dd></div>
+  <div><dt>Expansions</dt><dd>{{ stats.sets }}</dd></div>
+  <div><dt>Pokémon</dt><dd>{{ stats.species }}</dd></div>
+</dl>
+
+<form class="toolbar" method="get" role="search">
+  <input type="search" name="q" value="{{ search }}" placeholder="Search name, number, or expansion" aria-label="Search cards">
+  <select name="set" aria-label="Filter by expansion" data-autosubmit>
+    <option value="">All expansions</option>
+    {% for s in options.sets %}<option value="{{ s.id }}" {{ 'selected' if s.id == set_pk }}>{{ s.name }} ({{ s.n }})</option>{% endfor %}
+  </select>
+  <select name="rarity" aria-label="Filter by rarity" data-autosubmit>
+    <option value="">All rarities</option>
+    {% for r in options.rarities %}<option value="{{ r }}" {{ 'selected' if r == rarity }}>{{ r }}</option>{% endfor %}
+  </select>
+  <select name="variant" aria-label="Filter by variant" data-autosubmit>
+    <option value="">All variants</option>
+    {% for v in options.variants %}<option value="{{ v }}" {{ 'selected' if v == variant }}>{{ v }}</option>{% endfor %}
+  </select>
+  <select name="sort" aria-label="Sort cards" data-autosubmit>
+    <option value="added"  {{ 'selected' if sort == 'added' }}>Recently added</option>
+    <option value="oldest" {{ 'selected' if sort == 'oldest' }}>Oldest added</option>
+    <option value="name"   {{ 'selected' if sort == 'name' }}>Name</option>
+    <option value="set"    {{ 'selected' if sort == 'set' }}>Expansion</option>
+    <option value="value"  {{ 'selected' if sort == 'value' }}>Value</option>
+  </select>
+</form>
+
+{% if rows %}
+  <div class="list-head">
+    <p class="count">{{ total }} entr{{ 'y' if total == 1 else 'ies' }}{% if filtered %} found{% endif %}</p>
+    <div class="view-controls">
+      <label class="slider">Size <input id="tile-size" type="range" min="110" max="320" step="10" value="210" aria-label="Thumbnail size"></label>
+      <label class="check"><input id="show-details" type="checkbox" checked> Show details</label>
+    </div>
+  </div>
+  <ul class="grid">
+    {% for r in rows %}
+    <li>
+      <a class="tile owned" href="{{ url_for('cards.card', card_id=r.card_id) }}" title="{{ r.name }}">
+        <span class="card-frame">
+          {{ art(r.card_id) }}
+          {% if r.quantity > 1 %}<span class="qty-badge" aria-label="{{ r.quantity }} copies">×{{ r.quantity }}</span>{% endif %}
+          {{ finish_badges([r.variant], [r.variant]) }}
+        </span>
+        <span class="tile-name">{{ r.name }}</span>
+        <span class="tile-meta">{{ r.set_name or '' }}{% if r.card_number %} · {{ r.card_number }}{% endif %}</span>
+        <span class="tile-meta">{{ r.variant }} · {{ r.condition }}{% if r.unit_price is not none %} · {{ r.unit_price|money }}{% endif %}</span>
+      </a>
+    </li>
+    {% endfor %}
+  </ul>
+
+  {% if pages > 1 %}
+  <nav class="pagination" aria-label="Pages">
+    {% if page > 1 %}<a class="btn" href="{{ url_for('cards.index', q=search or none, set=set_pk, rarity=rarity or none, variant=variant or none, sort=sort, page=page-1) }}">Previous</a>{% endif %}
+    <span>Page {{ page }} of {{ pages }}</span>
+    {% if page < pages %}<a class="btn" href="{{ url_for('cards.index', q=search or none, set=set_pk, rarity=rarity or none, variant=variant or none, sort=sort, page=page+1) }}">Next</a>{% endif %}
+  </nav>
+  {% endif %}
+{% elif filtered %}
+  <div class="empty">
+    <h1>No cards match those filters.</h1>
+    <a class="btn" href="{{ url_for('cards.index') }}">Clear filters</a>
+  </div>
+{% else %}
+  <div class="empty">
+    <h1>No cards yet.</h1>
+    {% if can_edit %}
+      <p>Take a photo of a card and it will be identified and added for you.</p>
+      <a class="btn btn-primary" href="{{ url_for('cards.add') }}">Add your first card</a>
+    {% else %}
+      <p>Nothing has been added yet.</p>
+    {% endif %}
+  </div>
+{% endif %}
+{% endblock %}

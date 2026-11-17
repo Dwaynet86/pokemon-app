@@ -1,0 +1,27 @@
+{# The Theme menu in the header. Works for everyone; saves to the account when signed in. #}
+<details class="menu theme-menu" data-theme-menu data-state='{{ theme.state|tojson }}'
+         {% if current_user.is_authenticated %}data-save-url="{{ url_for('theme.save') }}"{% endif %}>
+  <summary aria-label="Theme"><span class="theme-dot" aria-hidden="true"></span><span class="theme-word">Theme</span></summary>
+  <div class="menu-body theme-body">
+    <p class="theme-label" id="theme-mode-label">Mode</p>
+    <div class="seg" role="group" aria-labelledby="theme-mode-label">
+      {% for m in theme.modes %}<button type="button" data-mode="{{ m }}" aria-pressed="false">{{ m|capitalize }}</button>{% endfor %}
+    </div>
+
+    <p class="theme-label" id="theme-accent-label">Accent color</p>
+    <div class="swatches" role="group" aria-labelledby="theme-accent-label">
+      {% for p in theme.presets %}
+        <button type="button" class="swatch" data-accent="{{ p.accent or '' }}" style="--sw: {{ p.swatch }}"
+                aria-label="{{ p.name }}" title="{{ p.name }}" aria-pressed="false"></button>
+      {% endfor %}
+      <label class="swatch swatch-custom" title="Pick any color"><input type="color" data-custom-accent value="#2d6a6a" aria-label="Custom accent color"></label>
+    </div>
+
+    <p class="theme-label" id="theme-tint-label">Page tint</p>
+    <div class="seg" role="group" aria-labelledby="theme-tint-label">
+      {% for name in theme.tint_names %}<button type="button" data-tint="{{ loop.index0 }}" aria-pressed="false">{{ name }}</button>{% endfor %}
+    </div>
+
+    <button type="button" class="btn reset" data-theme-reset>Reset to default</button>
+  </div>
+</details>

@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf_field %}
+{% block title %}Maintenance · {{ collection.name }}{% endblock %}
+
+{% block content %}
+<h1>Maintenance</h1>
+<p class="lede">Tools for looking after {{ collection.name }} as a whole.</p>
+
+<section class="panel">
+  <h2>Overview</h2>
+  <dl class="stats">
+    <div><dt>Cards</dt><dd>{{ stats.copies }}</dd></div>
+    <div><dt>Unique cards</dt><dd>{{ stats.unique_cards }}</dd></div>
+    <div><dt>Expansions</dt><dd>{{ stats.sets }}</dd></div>
+    <div><dt>Pokémon</dt><dd>{{ stats.species }}</dd></div>
+    <div><dt>Est. value</dt><dd>{{ stats.value|money }}</dd></div>
+    <div><dt>Artwork cache</dt><dd>{{ art_bytes|filesize }}</dd></div>
+  </dl>
+  <p class="hint">The artwork cache is shared by every collection on this server. Value is the TCGplayer market price of each variant you own.</p>
+</section>
+
+<section class="panel">
+  <h2>Prices</h2>
+  <p>Prices come from TCGdex (TCGplayer market prices in USD, one request per card).
+    {% if fallback_on %}Cards TCGdex has no price for are tried on PokeWallet, up to {{ fallback_max }} per run.{% else %}Set <code>POKEWALLET_API_KEY</code> to also try PokeWallet for cards TCGdex has no price for.{% endif %}</p>
+  <dl class="stats">
+    <div><dt>Priced</dt><dd>{{ price_info.priced }} of {{ price_info.cards }}</dd></div>
+    <div><dt>From TCGdex</dt><dd>{{ price_info.from_tcgdex }}</dd></div>
+    <div><dt>From PokeWallet</dt><dd>{{ price_info.from_pokewallet }}</dd></div>
+    <div><dt>Oldest check</dt><dd>{{ price_info.oldest|pretty_date if price_info.oldest else '—' }}</dd></div>
+  </dl>
+  {% if price_run %}
+    <p class="hint">
+      {% if price_run.status == 'running' %}Refreshing now: {{ price_run.done }} of {{ price_run.total }} checked. Reload to update.
+      {% elif price_run.status == 'done' %}Last run: {{ price_run.priced }} priced{% if price_run.fallback %} ({{ price_run.fallback }} via PokeWallet){% endif %}, {{ price_run.unpriced }} with no published price{% if price_run.failed %}, {{ price_run.failed }} failed{% endif %}.
+      {% else %}The last run stopped early.{% endif %}
+      {{ price_run.note or '' }}
+    </p>
+  {% endif %}
+  <form method="post" action="{{ url_for('maintenance.refresh_prices') }}">{{ csrf_field() }}
+    <div class="actions"><button class="btn btn-primary" type="submit"{% if price_run and price_run.status == 'running' %} disabled{% endif %}>Refresh all prices</button></div>
+  </form>
+  <p class="hint">Cards you add are priced automatically, and re-priced when you add them again after a day. Cards with no published price count as $0 in the estimate.</p>
+</section>
+
+<section class="panel">
+  <h2>Export</h2>
+  <p>Download your collection. Exports include every card you own with its expansion, number, variant, condition and quantity.</p>
+  <ul class="tool-list">
+    <li>
+      <div><strong>Spreadsheet (CSV)</strong><span>One row per entry, with market prices. Opens in Excel or Google Sheets.</span></div>
+      <a class="btn" href="{{ url_for('maintenance.export_csv') }}">Download CSV</a>
+    </li>
+    <li>
+      <div><strong>Backup (JSON)</strong><span>Your whole collection as structured data. Can be imported again.</span></div>
+      <a class="btn btn-primary" href="{{ url_for('maintenance.export_json') }}">Download JSON</a>
+    </li>
+  </ul>
+</section>
+
+<form class="panel form" method="post" action="{{ url_for('maintenance.import_backup') }}" enctype="multipart/form-data">
+  {{ csrf_field() }}
+  <h2>Import</h2>
+  <p>Restore cards from a JSON export (or an older backup ZIP). Cards this server hasn't seen yet are looked up on TCGdex first, which can take a moment for a large file. If anything in the file is invalid, or a card can't be found, nothing is imported.</p>
+  <input type="file" name="backup" accept=".zip,.json,application/zip,application/json" required>
+  <label class="check"><input type="checkbox" name="skip_duplicates" value="1" checked> Skip entries already here (same card, variant and condition). Untick to add the quantities together instead.</label>
+  <p class="hint">Prices aren't part of a backup. Use Refresh all prices on this page after importing.</p>
+  <div class="actions"><button class="btn btn-primary" type="submit">Import</button></div>
+</form>
+{% endblock %}

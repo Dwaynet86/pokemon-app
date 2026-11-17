@@ -1,0 +1,24 @@
+{% extends layout %}
+{% block title %}Wanted cards · {{ owner_collection.name }}{% endblock %}
+
+{% block content %}
+<h1>{{ owner_collection.name }}: wanted cards</h1>
+<p class="lede">Cards still on the list.</p>
+{% if cards %}
+  <p class="count">{{ cards|length }} card{{ '' if cards|length == 1 else 's' }}{% if total %} · about {{ total|money }} for the cheapest version of each{% endif %}</p>
+  <ul class="grid">
+    {% for c in cards %}
+    <li>
+      <div class="tile">
+        <span class="card-frame"><img class="card-img" loading="lazy" alt="{{ c.name }}" src="{{ url_for('wanted_public.art', slug=owner_collection.slug, card_id=c.id) }}"></span>
+        <span class="tile-name">{{ c.name }}</span>
+        <span class="tile-meta">{{ c.card_number or '' }}{% if c.set_name %} · {{ c.set_name }}{% endif %}</span>
+        <span class="tile-meta">{% if c.rarity %}{{ c.rarity }}{% endif %}{% if c.price_from %}{{ ' · ' if c.rarity }}from {{ c.price_from|money }}{% endif %}</span>
+      </div>
+    </li>
+    {% endfor %}
+  </ul>
+{% else %}
+  <div class="empty"><h1>Nothing is on this list right now.</h1></div>
+{% endif %}
+{% endblock %}

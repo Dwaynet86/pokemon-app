@@ -1,0 +1,66 @@
+{# Reusable template pieces. #}
+
+{% macro csrf_field() %}
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+{% endmacro %}
+
+{% macro field_error(errors, field) %}
+  {% if errors.get(field) %}<p class="field-error" id="{{ field }}-error">{{ errors[field] }}</p>{% endif %}
+{% endmacro %}
+
+{# Official artwork, served from the local cache (downloaded once from TCGdex). size: low | high #}
+{% macro art(card_id, class="card-img", size="low") %}
+  <img class="{{ class }}" loading="lazy" alt="" src="{{ url_for('art.card_art', card_id=card_id, size=none if size == 'low' else size) }}">
+{% endmacro %}
+
+{% macro view_tabs(active) %}
+  <nav class="view-tabs" aria-label="Collection views">
+    <a href="{{ url_for('cards.overview') }}" {% if active == 'overview' %}aria-current="page"{% endif %}>Overview</a>
+    <a href="{{ url_for('cards.index') }}" {% if active == 'gallery' %}aria-current="page"{% endif %}>Gallery</a>
+    <a href="{{ url_for('cards.sets') }}" {% if active == 'sets' %}aria-current="page"{% endif %}>Expansions</a>
+    <a href="{{ url_for('cards.pokemon') }}" {% if active == 'pokemon' %}aria-current="page"{% endif %}>PokeDex</a>
+    <a href="{{ url_for('cards.wanted_list') }}" {% if active == 'wanted' %}aria-current="page"{% endif %}>Wanted</a>
+  </nav>
+{% endmacro %}
+
+{# Which finishes of a card you own: filled = owned, dashed = exists but not owned yet. Pass `add_url` (editors) and the dashed
+   ones become buttons that add a Near Mint copy of that finish. Unknown finishes (card details not downloaded yet) just show
+   what you own. #}
+{% macro finish_badges(existing, owned, add_url=none) %}
+  {% set short = {'Normal': 'N', 'Holofoil': 'H', 'Reverse Holofoil': 'R', '1st Edition': '1st', '1st Edition Holofoil': '1H', 'Promo': 'P'} %}
+  {% set order = short.keys() | list %}
+  {% set have = owned or [] %}
+  {% set every = (existing or []) + (have | reject('in', existing or []) | list) %}
+  {% set ns = namespace(items=[]) %}
+  {% for v in order if v in every %}{% set ns.items = ns.items + [v] %}{% endfor %}
+  {% for v in every if v not in order %}{% set ns.items = ns.items + [v] %}{% endfor %}
+  {% if ns.items %}
+  <span class="finish-strip">
+    {% for v in ns.items %}
+      {% if v in have %}<span class="finish has" title="{{ v }}: you own this finish">{{ short.get(v, v[:1]) }}</span>
+      {% elif add_url %}<button type="button" class="finish lacks add" data-add-finish="{{ add_url }}" data-variant="{{ v }}" title="{{ v }}: not owned yet. Click to add a Near Mint copy." aria-label="Add a {{ v }} copy">{{ short.get(v, v[:1]) }}</button>
+      {% else %}<span class="finish lacks" title="{{ v }}: not owned yet">{{ short.get(v, v[:1]) }}</span>{% endif %}
+    {% endfor %}
+  </span>
+  {% endif %}
+{% endmacro %}
+
+{% macro finish_legend() %}
+  <p class="finish-legend"><span><span class="finish has">N</span>Normal</span><span><span class="finish has">H</span>Holo</span><span><span class="finish has">R</span>Reverse holo</span><span><span class="finish lacks">R</span>exists, not owned yet (click to add, if you can edit)</span></p>
+{% endmacro %}
+
+{% macro progress(have, total) %}
+  {% set pct = (have * 100 / total)|round|int if total else 0 %}
+  <div class="progress" role="progressbar" aria-valuemin="0" aria-valuemax="{{ total }}" aria-valuenow="{{ have }}"><span style="width: {{ pct }}%"></span></div>
+{% endmacro %}
+
+{# Master set: count every finish of a card toward completion. Editors get a switch; everyone sees when it's on. #}
+{% macro master_toggle(on, editable, back) %}
+  {% if editable %}
+  <form class="master-toggle" method="post" action="{{ url_for('cards.master_set') }}">
+    {{ csrf_field() }}<input type="hidden" name="back" value="{{ back }}"><input type="hidden" name="master" value="0">
+    <label class="check" title="Count a card's normal, holo and reverse holo versions separately toward completion">
+      <input type="checkbox" name="master" value="1" {{ 'checked' if on }} data-autosubmit> Master set: count every finish</label>
+  </form>
+  {% elif on %}<span class="muted">Master set: every finish counts</span>{% endif %}
+{% endmacro %}

@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+{% from "_macros.html" import view_tabs, art, progress %}
+{% block title %}Overview · {{ collection.name }}{% endblock %}
+
+{% block content %}
+{{ view_tabs('overview') }}
+{% set h = ov.head %}
+
+{% if not h.unique_cards %}
+  <div class="empty">
+    <h1>Nothing in this collection yet.</h1>
+    {% if can_edit %}
+      <p>Take a photo of a card and it will be identified and added for you.</p>
+      <a class="btn btn-primary" href="{{ url_for('cards.add') }}">Add your first card</a>
+    {% else %}
+      <p>Cards added to this collection will be summarised here.</p>
+    {% endif %}
+  </div>
+{% else %}
+
+<dl class="ov-stats">
+  <div class="ov-stat ov-stat-lead">
+    <dt>Estimated value</dt><dd>{{ h.value|money }}</dd>
+    <small>{% if h.priced < h.unique_cards %}{{ h.priced }} of {{ h.unique_cards }} cards have a price{% else %}Every card has a price{% endif %}</small>
+  </div>
+  <div class="ov-stat"><dt>Unique cards</dt><dd>{{ h.unique_cards }}</dd><small>{{ h.copies }} cop{{ 'y' if h.copies == 1 else 'ies' }} in all</small></div>
+  <div class="ov-stat"><dt>Expansions</dt><dd>{{ h.sets }}</dd><small>{{ h.completed }} complete</small></div>
+  <div class="ov-stat"><dt>Pokémon</dt><dd>{{ h.species }}</dd><small>of {{ h.species_total }}</small></div>
+</dl>
+
+<div class="ov-grid">
+  <section class="panel ov-panel">
+    <h2>Most valuable cards</h2>
+    {% if ov.top_cards %}
+    <ol class="ov-list">
+      {% for c in ov.top_cards %}
+      <li>
+        <a class="ov-thumb" href="{{ url_for('cards.card', card_id=c.id) }}" tabindex="-1" aria-hidden="true">{{ art(c.id) }}</a>
+        <div class="ov-main">
+          <a href="{{ url_for('cards.card', card_id=c.id) }}"><strong>{{ c.name }}</strong></a>
+          <span class="muted">{{ c.card_number or '' }}{% if c.set_name %} · {{ c.set_name }}{% endif %}{% if c.copies > 1 %} · ×{{ c.copies }}{% endif %}</span>
+        </div>
+        <span class="ov-value">{{ c.value|money }}</span>
+      </li>
+      {% endfor %}
+    </ol>
+    {% else %}<p class="muted">No prices yet. Open Maintenance and press Refresh all prices.</p>{% endif %}
+  </section>
+
+  <section class="panel ov-panel">
+    <h2>Expansions near completion</h2>
+    {% if ov.closest %}
+    <ul class="ov-list ov-sets">
+      {% for s in ov.closest %}
+      <li>
+        <div class="ov-main">
+          <a href="{{ url_for('cards.set_detail', set_pk=s.id, show='missing') }}"><strong>{{ s.name }}</strong></a>
+          <span class="muted">{{ s.missing }} {{ 'finish' if master else 'card' }}{{ '' if s.missing == 1 else ('es' if master else 's') }} to go</span>
+          {{ progress(s.owned, s.total) }}
+        </div>
+        <span class="ov-value">{{ s.owned }}/{{ s.total }}</span>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}<p class="muted">Expansions show up here once you have a few cards from them.</p>{% endif %}
+  </section>
+
+  <section class="panel ov-panel">
+    <h2>Most valuable expansions</h2>
+    {% if ov.top_sets %}
+    <ul class="ov-list ov-sets">
+      {% for s in ov.top_sets %}
+      <li>
+        <div class="ov-main">
+          <a href="{{ url_for('cards.set_detail', set_pk=s.id) }}"><strong>{{ s.name }}</strong></a>
+          <span class="muted">{{ s.owned }}{% if s.total %} of {{ s.total }}{% endif %} cards · {{ s.pct }}%</span>
+        </div>
+        <span class="ov-value">{{ s.value|money }}</span>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}<p class="muted">No priced cards yet.</p>{% endif %}
+  </section>
+
+  <section class="panel ov-panel">
+    <h2>Pokémon by generation</h2>
+    <ul class="ov-list ov-gens">
+      {% for g in ov.generations %}
+      <li>
+        <div class="ov-main">
+          <a href="{{ url_for('cards.pokemon', gen=g.n) }}"><strong>Gen {{ g.n }}</strong></a>
+          <span class="muted">{{ g.name }}</span>
+          {{ progress(g.caught, g.total) }}
+        </div>
+        <span class="ov-value">{{ g.caught }}/{{ g.total }}</span>
+      </li>
+      {% endfor %}
+    </ul>
+  </section>
+</div>
+
+<section class="panel ov-panel" style="max-width:none">
+  <h2>Recently added</h2>
+  <ul class="ov-recent">
+    {% for c in ov.recent %}
+    <li><a href="{{ url_for('cards.card', card_id=c.id) }}" title="{{ c.name }}"><span class="card-frame">{{ art(c.id) }}</span><span class="tile-name">{{ c.name }}</span><span class="tile-meta">{{ c.card_number or '' }}</span></a></li>
+    {% endfor %}
+  </ul>
+</section>
+
+<section class="panel ov-panel" style="max-width:none">
+  <h2>Wanted list</h2>
+  {% if ov.wanted.cards %}
+    <p>{{ ov.wanted.cards }} card{{ '' if ov.wanted.cards == 1 else 's' }}{% if ov.wanted.cost %} · about <strong>{{ ov.wanted.cost|money }}</strong> for the cheapest version of each{% endif %}.
+      <a href="{{ url_for('cards.wanted_list') }}">Open the wanted list</a></p>
+  {% else %}
+    <p class="muted">Nothing on the wanted list. Press the ☆ on any card you don't have in an expansion.
+      <a href="{{ url_for('cards.sets') }}">Browse expansions</a></p>
+  {% endif %}
+</section>
+{% endif %}
+{% endblock %}

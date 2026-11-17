@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf_field, view_tabs, art %}
+{% block title %}Wanted · {{ collection.name }}{% endblock %}
+
+{% block content %}
+{{ view_tabs('wanted') }}
+<h1>Wanted cards</h1>
+<p class="lede">Cards you're still looking for. A card leaves this list when you add a copy.</p>
+
+<section class="panel wide" style="max-width:none">
+  <h2>Share</h2>
+  {% if collection.wanted_public %}
+    <p>Anyone with this link can see the list, no login needed. They see the cards only, with no links into the app.</p>
+    <p><input type="text" readonly value="{{ public_url }}" aria-label="Public link" data-select-all style="width:100%"></p>
+  {% else %}
+    <p>The list is private. Only members of this collection can see it.</p>
+  {% endif %}
+  {% if is_owner %}
+  <form method="post" action="{{ url_for('cards.wanted_sharing') }}">
+    {{ csrf_field() }}
+    <input type="hidden" name="public" value="{{ '0' if collection.wanted_public else '1' }}">
+    <button class="btn" type="submit">{{ 'Make private' if collection.wanted_public else 'Make public' }}</button>
+  </form>
+  {% endif %}
+</section>
+
+{% if cards %}
+  <div class="list-head">
+    <p class="count">{{ cards|length }} card{{ '' if cards|length == 1 else 's' }}{% if total %} · about {{ total|money }} to buy the cheapest version of each{% endif %}</p>
+  </div>
+  <ul class="grid">
+    {% for c in cards %}
+    <li>
+      <div class="tile missing">
+        <div class="tile-art">
+          <a class="card-frame" href="{{ url_for('cards.card', card_id=c.id) }}" title="{{ c.name }}">{{ art(c.id) }}</a>
+          {% if can_edit %}
+          <form method="post" action="{{ url_for('cards.toggle_wanted', card_id=c.id) }}">
+            {{ csrf_field() }}<input type="hidden" name="back" value="wanted">
+            <button class="tile-btn want-btn on" type="submit" aria-label="Remove {{ c.name }} from the wanted list" title="Remove from the wanted list">★</button>
+          </form>
+          {% endif %}
+        </div>
+        <a class="tile-name" href="{{ url_for('cards.card', card_id=c.id) }}">{{ c.name }}</a>
+        <span class="tile-meta">{{ c.card_number or '' }}{% if c.set_name %} · {{ c.set_name }}{% endif %}</span>
+        <span class="tile-meta">{% if c.rarity %}{{ c.rarity }}{% endif %}{% if c.price_from %}{{ ' · ' if c.rarity }}from {{ c.price_from|money }}{% endif %}</span>
+      </div>
+    </li>
+    {% endfor %}
+  </ul>
+{% else %}
+  <div class="empty">
+    <h1>Nothing on the wanted list yet.</h1>
+    <p>Open an expansion and press the ☆ on a card you don't have.</p>
+    <a class="btn" href="{{ url_for('cards.sets') }}">Browse expansions</a>
+  </div>
+{% endif %}
+{% endblock %}

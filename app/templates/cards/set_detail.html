@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf_field, view_tabs, art, progress, finish_badges, finish_legend, master_toggle %}
+{% block title %}{{ set.name }} · {{ collection.name }}{% endblock %}
+
+{% block content %}
+{{ view_tabs('sets') }}
+<a class="back" href="{{ url_for('cards.sets') }}">← All expansions</a>
+<div class="set-head">
+  {% if set.logo_url %}<img class="set-logo set-logo-lg" alt="" src="{{ set.logo_url }}">{% endif %}
+  <div>
+    <h1>{{ set.name }}</h1>
+    <p class="lede" style="margin:0">{{ set.set_code or '' }}{% if set.series %}{{ ' · ' if set.set_code }}{{ set.series }}{% endif %}{% if set.release_date %} · Released {{ set.release_date|pretty_date }}{% endif %}</p>
+  </div>
+</div>
+
+{% if set.sync_status == 'running' %}
+<div class="panel sync-banner" style="max-width:none" data-sync-url="{{ url_for('cards.set_status', set_pk=set.id) }}">
+  <div class="progress-label"><span><strong>Downloading this expansion…</strong> <span data-sync-text>starting</span></span></div>
+  <div class="progress"><span data-sync-bar style="width:0%"></span></div>
+  <p class="hint">Cards, details and artwork are being saved locally. You can keep browsing.</p>
+</div>
+{% elif set.sync_status == 'error' %}
+<div class="flash flash-error">The last download didn't finish: {{ set.sync_message or 'unknown error' }}</div>
+{% endif %}
+
+<div class="panel" style="max-width:none" data-collected data-total="{{ total }}" data-have="{{ have }}" data-master="{{ 1 if master else 0 }}">
+  <div class="progress-label"><span><strong data-have-text>{{ have }}</strong> of {{ total }}{{ ' finishes' if master }} collected</span><span data-pct-text>{{ ((have * 100 / total)|round|int) if total else 0 }}%</span></div>
+  {{ progress(have, total) }}
+  {% if can_edit or master %}<div class="panel-foot">{{ master_toggle(master, can_edit, request.full_path.rstrip('?')) }}</div>{% endif %}
+</div>
+
+{% if can_edit and total and (unwanted_missing or wanted_here) %}
+<div class="set-actions">
+  {% if unwanted_missing %}
+  <form method="post" action="{{ url_for('cards.wanted_missing', set_pk=set.id) }}">{{ csrf_field() }}
+    <input type="hidden" name="show" value="{{ show if show != 'all' }}"><input type="hidden" name="lacking" value="{{ lacking }}">
+    <button class="btn btn-primary" type="submit" title="Puts every card you don't own from {{ set.name }} on your wanted list">★ Add all {{ unwanted_missing }} missing card{{ '' if unwanted_missing == 1 else 's' }} to the wanted list</button>
+  </form>
+  {% else %}
+  <span class="muted">★ All {{ missing_count }} missing cards are on your wanted list.</span>
+  {% endif %}
+  {% if wanted_here %}
+  <form method="post" action="{{ url_for('cards.wanted_missing', set_pk=set.id) }}">{{ csrf_field() }}
+    <input type="hidden" name="action" value="clear"><input type="hidden" name="show" value="{{ show if show != 'all' }}"><input type="hidden" name="lacking" value="{{ lacking }}">
+    <button class="btn" type="submit" data-confirm="Take all {{ wanted_here }} card{{ '' if wanted_here == 1 else 's' }} from {{ set.name }} off your wanted list?">Clear this expansion's wanted cards</button>
+  </form>
+  {% endif %}
+</div>
+{% endif %}
+
+{% if total %}
+<div class="list-head">
+  <div class="seg" role="group" aria-label="Show">
+    <a href="{{ url_for('cards.set_detail', set_pk=set.id, show='all', lacking=lacking or none) }}" {% if show == 'all' %}aria-current="true"{% endif %}>All</a>
+    <a href="{{ url_for('cards.set_detail', set_pk=set.id, show='have', lacking=lacking or none) }}" {% if show == 'have' %}aria-current="true"{% endif %}>Collected</a>
+    <a href="{{ url_for('cards.set_detail', set_pk=set.id, show='missing', lacking=lacking or none) }}" {% if show == 'missing' %}aria-current="true"{% endif %}>Missing</a>
+  </div>
+  <div class="view-controls">
+    {% if finish_options %}
+    <form method="get" class="finish-filter">
+      <input type="hidden" name="show" value="{{ show }}">
+      <select name="lacking" aria-label="Finish filter" data-autosubmit>
+        <option value="">Any finish</option>
+        {% for f in finish_options %}<option value="{{ f }}" {{ 'selected' if f == lacking }}>Missing {{ f }}</option>{% endfor %}
+      </select>
+    </form>
+    {% endif %}
+    {% if set.images_synced_at and set.details_synced_at %}
+      <span title="Cards, details and artwork are stored on this server">Stored locally ✓</span>
+    {% endif %}
+    {% if can_edit and set.sync_status != 'running' %}
+      {% if not (set.images_synced_at and set.details_synced_at) %}
+      <form method="post" action="{{ url_for('cards.download_set', set_pk=set.id) }}">{{ csrf_field() }}<button class="btn" type="submit" title="Saves every card's details and artwork on this server">Download whole expansion</button></form>
+      {% else %}
+      <form method="post" action="{{ url_for('cards.download_set', set_pk=set.id) }}">{{ csrf_field() }}<input type="hidden" name="force" value="1"><button class="btn" type="submit">Refresh data</button></form>
+      {% endif %}
+    {% endif %}
+    <label class="slider">Size <input id="tile-size" type="range" min="110" max="320" step="10" value="210" aria-label="Thumbnail size"></label>
+  </div>
+</div>
+
+{{ finish_legend() }}
+<ul class="grid">
+  {% for c in cards %}
+  <li>
+    {% set is_wanted = c.id in wanted_ids %}
+    {% if c.qty %}
+    {# Owned: the picture opens the card; the finish pills show (and, for editors, add) the finishes. #}
+    <div class="tile owned">
+      <div class="tile-art">
+        <a class="card-frame" href="{{ url_for('cards.card', card_id=c.id) }}" title="{{ c.name }}">
+          {{ art(c.id) }}
+          <span class="check-badge" aria-label="Owned{% if c.qty > 1 %}, {{ c.qty }} copies{% endif %}">{{ '✓' if c.qty == 1 else c.qty }}</span>
+        </a>
+        {{ finish_badges(c.variants, c.owned_variants, url_for('cards.quick_add', card_id=c.id) if can_edit else none) }}
+      </div>
+      <a class="tile-name" href="{{ url_for('cards.card', card_id=c.id) }}">{{ c.name }}</a>
+      <span class="tile-meta">{{ c.card_number or '' }}{% if c.rarity %} · {{ c.rarity }}{% endif %}</span>
+    </div>
+    {% elif can_edit %}
+    {# A card you don't have. The picture opens the card; the buttons on it add it to your wanted list (star) or your collection (+). #}
+    <div class="tile missing">
+      <div class="tile-art">
+        <a class="card-frame" href="{{ url_for('cards.card', card_id=c.id) }}" title="{{ c.name }}">{{ art(c.id) }}</a>
+        <button type="button" class="tile-btn want-btn{{ ' on' if is_wanted }}" data-want="{{ url_for('cards.toggle_wanted', card_id=c.id) }}"
+                aria-pressed="{{ 'true' if is_wanted else 'false' }}" aria-label="Wanted list: {{ c.name }}"
+                title="{{ 'On your wanted list. Click to remove.' if is_wanted else 'Add to your wanted list' }}">{{ '★' if is_wanted else '☆' }}</button>
+        <button type="button" class="tile-btn add-btn" data-quick-add="{{ url_for('cards.quick_add', card_id=c.id) }}" data-name="{{ c.name }}"
+                aria-label="Add {{ c.name }} to your collection" title="Add one copy to your collection">+</button>
+      </div>
+      <a class="tile-name" href="{{ url_for('cards.card', card_id=c.id) }}">{{ c.name }}</a>
+      <span class="tile-meta">{{ c.card_number or '' }}{% if c.rarity %} · {{ c.rarity }}{% endif %}</span>
+    </div>
+    {% else %}
+    <a class="tile missing" href="{{ url_for('cards.card', card_id=c.id) }}" title="{{ c.name }}">
+      <span class="card-frame">
+        {{ art(c.id) }}
+        {% if is_wanted %}<span class="want-badge" title="On the wanted list">★</span>{% endif %}
+      </span>
+      <span class="tile-name">{{ c.name }}</span>
+      <span class="tile-meta">{{ c.card_number or '' }}{% if c.rarity %} · {{ c.rarity }}{% endif %}</span>
+    </a>
+    {% endif %}
+  </li>
+  {% else %}
+  <li class="muted">Nothing to show for this filter.{% if lacking %} Every card that comes in {{ lacking }} is already in your collection in that finish.{% endif %}</li>
+  {% endfor %}
+</ul>
+{% else %}
+<div class="empty">
+  <h1>No cards loaded for this expansion.</h1>
+  <p>The card list is downloaded from TCGdex the first time you open an expansion.</p>
+  <a class="btn btn-primary" href="{{ url_for('cards.set_detail', set_pk=set.id) }}">Try again</a>
+</div>
+{% endif %}
+{% endblock %}
