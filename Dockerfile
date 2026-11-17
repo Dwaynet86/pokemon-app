@@ -13,7 +13,8 @@ COPY requirements.txt .
 RUN pip install -r requirements.txt
 
 COPY . .
-RUN chmod +x docker/entrypoint.sh
+# chmod: git on Windows loses the executable bit. sed: and may add Windows line endings, which break a shell script.
+RUN sed -i 's/\r$//' docker/entrypoint.sh && chmod +x docker/entrypoint.sh
 
 # 568 is the "apps" user on TrueNAS SCALE, so files on a host path it owns are writable without extra setup.
 RUN groupadd -g 568 apps && useradd -u 568 -g apps -M -s /usr/sbin/nologin apps \
