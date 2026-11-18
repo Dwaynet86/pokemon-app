@@ -13,7 +13,7 @@ The app on TrueNAS pulls the newest image every time it starts. Your data lives 
    `tank/apps/pokemon-cards/db` and `tank/apps/pokemon-cards/uploads`. Plain defaults are fine.
 4. **Edit `docker-compose.truenas.yml`:** fix the lines marked `CHANGE` (image name, passwords, `SECRET_KEY`, dataset paths).
 5. **TrueNAS: Apps -> Discover Apps -> Custom App -> Install via YAML.** Paste the file, name it `pokemon-cards`, Save.
-6. Open `http://<truenas-ip>:30080`. The first run creates the tables itself and walks you through creating the first account.
+6. Open `http://<truenas-ip>:30080` and sign in with the `FIRST_ADMIN_USER` / `FIRST_ADMIN_PASSWORD` you set in the compose file. The first start creates the tables and that admin account (only while no users exist). Afterwards change the password in the app, then remove `FIRST_ADMIN_PASSWORD` from the app's config. Add other users from the Admin page.
 
 ## Updating
 

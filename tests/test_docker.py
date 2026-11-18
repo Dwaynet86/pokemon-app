@@ -45,3 +45,22 @@ def test_packaging_files_exist_and_agree():
     assert "init_db.py" in (ROOT / "docker/entrypoint.sh").read_text()
     assert "568" in (ROOT / "Dockerfile").read_text()
     assert "ghcr.io" in (ROOT / ".github/workflows/docker.yml").read_text()
+
+
+def test_bootstrap_admin_creates_only_the_first_user():
+    from scripts import bootstrap_admin as ba
+
+    def run(users, name="admin", pw="longenough1"):
+        conn = MagicMock()
+        conn.execute.return_value.fetchone.side_effect = [{"n": users}, {"id": 5}]
+        with patch.object(ba.psycopg, "connect") as connect, patch.object(ba.coll_repo, "create", return_value="admin-s-cards") as create:
+            connect.return_value.__enter__.return_value = conn
+            return ba.bootstrap(name, pw), create
+
+    msg, create = run(0)
+    assert msg.startswith("Created admin user 'admin'") and create.called
+    msg, create = run(2)
+    assert "already exist" in msg and not create.called
+    assert "No FIRST_ADMIN_USER" in run(0, "", "")[0]
+    msg, create = run(0, pw="short")
+    assert msg.startswith("Not creating") and not create.called

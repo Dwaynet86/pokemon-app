@@ -17,5 +17,6 @@ else:
     sys.exit("The database never became reachable. Check DATABASE_URL.")
 PY
 python scripts/init_db.py
+python scripts/bootstrap_admin.py || echo "Could not create the first admin (see above); the app will start anyway."
 exec gunicorn run:app --bind "0.0.0.0:${PORT:-8000}" --workers "${WEB_WORKERS:-2}" --threads "${WEB_THREADS:-4}" \
     --timeout 120 --access-logfile - --forwarded-allow-ips "*"

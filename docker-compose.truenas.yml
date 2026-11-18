@@ -45,6 +45,8 @@ services:
     environment:
       SECRET_KEY: CHANGE_ME_LONG_RANDOM_STRING                   # CHANGE: python -c "import secrets; print(secrets.token_hex(32))"
       DATABASE_URL: postgresql://pokemon:CHANGE_ME_DB_PASSWORD@db:5432/pokemon   # CHANGE the password to match
+      FIRST_ADMIN_USER: admin                                    # CHANGE: your login name; created once, on the first start only
+      FIRST_ADMIN_PASSWORD: CHANGE_ME_ADMIN_PASSWORD             # CHANGE: at least 8 characters. Remove this line after you sign in
       POKEWALLET_API_KEY: ""                                     # optional (price fallback)
       TRUST_PROXY: "0"                                           # set to "1" behind a reverse proxy
       SESSION_COOKIE_SECURE: "0"                                 # set to "1" once you serve it over HTTPS
