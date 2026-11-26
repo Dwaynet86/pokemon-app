@@ -10,7 +10,7 @@ from unittest.mock import patch
 import pytest
 from werkzeug.datastructures import FileStorage
 
-from app import exporter, images, importer, pricecharting
+from app import exporter, images, importer
 from tests.conftest import OWNED
 
 BASE = "/c/ash-s-cards/maintenance"
@@ -152,20 +152,13 @@ def test_old_backup_zip_with_photos_restores_without_them(app, tmp_path):
     assert not list(tmp_path.rglob("*.webp"))                      # the photo in the ZIP is ignored
 
 
-PC_PRODUCTS = [(14450985, "Pokemon 30th Celebration", "Vulpix #9"),
-               (111, "Pokemon Surging Sparks", "Pikachu ex #57"),
-               (112, "Pokemon Surging Sparks", "Pikachu ex [Reverse Holo] #57"),
-               (113, "Pokemon Japanese Surging Sparks", "Raichu #58"),
-               (114, "Pokemon Scarlet & Violet 151", "Flabebe #81")]
-
-
-def pc_rows(*rows, products=PC_PRODUCTS):
+def pc_rows(*rows):
     import csv as _csv
-    matched, _ = pricecharting.match_all(list(rows), products)
-    return list(_csv.DictReader(io.StringIO(exporter.to_pricecharting_csv(matched).decode())))
+    out = exporter.to_pricecharting_csv(list(rows)).decode()
+    return list(_csv.DictReader(io.StringIO(out)))
 
 
-def test_pricecharting_header_matches_their_export():
+def test_pricecharting_header_matches_their_sample_export():
     raw = exporter.to_pricecharting_csv([])
     assert not raw.startswith(b"\xef\xbb\xbf")                        # no BOM: the first header must read literally
     assert raw.decode().strip() == ("id,product-name,console-name,price-in-pennies,include-string,condition-string,condition-id,"
@@ -173,54 +166,30 @@ def test_pricecharting_header_matches_their_export():
                                     "grading-cert-id,folder")
 
 
-def test_pricecharting_row_matches_their_sample_with_the_product_id():
-    # Their sample: "14450985, Vulpix #9, Pokemon 30th Celebration, 114, Ungraded, Normal wear, 1, ..., 0, 1, 2026-11-26"
+def test_pricecharting_row_matches_their_sample_format():
+    # Their sample: "Vulpix #9, Pokemon 30th Celebration, 114, Ungraded, Normal wear, 1, ..., 0, 1, 2026-11-26"
     row = {**OWNED, "name": "Vulpix", "card_number": "009/030", "set_name": "30th Celebration", "variant": "Normal",
            "unit_price": Decimal("1.14"), "quantity": 1, "notes": None, "acquired_on": None,
            "created_at": datetime(2026, 11, 26, 3, 0, tzinfo=timezone.utc)}
     (r,) = pc_rows(row)
-    assert r["id"] == "14450985"                                           # the mandatory column
     assert (r["product-name"], r["console-name"], r["price-in-pennies"]) == ("Vulpix #9", "Pokemon 30th Celebration", "114")
     assert (r["include-string"], r["condition-string"], r["condition-id"]) == ("Ungraded", "Normal wear", "1")
     assert (r["cost-basis-in-pennies"], r["quantity"], r["date-entered"], r["date-purchased"]) == ("0", "1", "2026-11-26", "")
 
 
-def test_pricecharting_matching_finish_prices_notes_and_fallbacks():
-    base = {**OWNED, "card_number": "57/191", "set_name": "Surging Sparks", "notes": "x" * 400, "acquired_on": date(2025, 1, 2)}
-    rows = pc_rows(
+def test_pricecharting_finish_tags_prices_quantities_and_names():
+    base = {**OWNED, "card_number": "57/191", "set_name": "Surging Sparks", "notes": "gift", "acquired_on": date(2025, 1, 2)}
+    holo, rev, first, unpriced, accent = pc_rows(
         {**base, "variant": "Holofoil", "unit_price": Decimal("4.5"), "quantity": 2},
         {**base, "variant": "Reverse Holofoil", "unit_price": Decimal("0.995")},
-        {**base, "name": "Flabébé", "card_number": None, "card_id": "sv3pt5-081", "set_name": "151", "variant": "Normal"},
-        {**base, "name": "Raichu", "card_number": "58/191", "variant": "Normal"})       # only a Japanese Raichu exists: no match
-    assert len(rows) == 3                                                               # ...so that row is left out, not guessed
-    holo, rev, flabebe = rows
-    assert holo["id"] == "111" and holo["price-in-pennies"] == "450" and holo["quantity"] == "2"
-    assert len(holo["notes"]) == 300 and holo["date-purchased"] == "2025-01-02"          # PriceCharting's notes limit
-    assert rev["id"] == "112" and rev["product-name"] == "Pikachu ex [Reverse Holo] #57" and rev["price-in-pennies"] == "100"
-    assert flabebe["id"] == "114" and flabebe["console-name"] == "Pokemon Scarlet & Violet 151"   # near-match on the set name
-
-
-def test_pricecharting_unmatched_are_listed_and_a_filled_file_loads_back():
-    raichu = {**OWNED, "name": "Raichu", "card_number": "58/191", "set_name": "Surging Sparks", "variant": "Normal"}
-    matched, unmatched = pricecharting.match_all([raichu, {**OWNED, "name": "Vulpix", "card_number": "9", "set_name": "30th Celebration",
-                                                           "variant": "Normal"}], PC_PRODUCTS)
-    assert [m[1][0] for m in matched] == [14450985] and unmatched == [raichu]          # the Japanese one is never used
-    lines = pricecharting.to_unmatched_csv(unmatched).decode().splitlines()
-    assert lines[0] == "id,product-name,console-name,quantity,variant,card_id"
-    assert lines[1].startswith(",Raichu #58,Pokemon Surging Sparks,")
-    filled = ("\n".join([lines[0], "9999" + lines[1]])).encode()                      # user types the id in front of the comma
-    products, skipped = pricecharting.parse_products(io.BytesIO(filled))
-    assert products == [(9999, "Pokemon Surging Sparks", "Raichu #58")] and skipped == 0
-    assert pricecharting.match_all([raichu], products)[0][0][1][0] == 9999
-
-
-def test_loading_a_price_guide_keeps_only_pokemon_rows_with_ids_and_rejects_other_files():
-    guide = (b"id,console-name,product-name,loose-price\n1,Pokemon Surging Sparks,Pikachu ex #57,$4\n"
-             b"2,Nintendo 64,Mario Kart,$30\n,Pokemon Base Set,Charmander #46,$1\n3,Pokemon Base Set,Charmander #46,$2\n")
-    products, skipped = pricecharting.parse_products(io.BytesIO(b"\xef\xbb\xbf" + guide))
-    assert products == [(1, "Pokemon Surging Sparks", "Pikachu ex #57"), (3, "Pokemon Base Set", "Charmander #46")] and skipped == 2
-    with pytest.raises(pricecharting.ProductFileError, match="'id'"):
-        pricecharting.parse_products(io.BytesIO(b"name,price\nx,1\n"))
+        {**base, "variant": "1st Edition Holofoil", "unit_price": None},
+        {**base, "variant": "Normal", "unit_price": None},
+        {**base, "name": "Flabébé", "card_number": None, "card_id": "sv1-081", "set_name": "Pokémon Card 151", "unit_price": None})
+    assert holo["product-name"] == "Pikachu ex #57" and holo["price-in-pennies"] == "450" and holo["quantity"] == "2"
+    assert rev["product-name"] == "Pikachu ex [Reverse Holo] #57" and rev["price-in-pennies"] == "100"   # rounds half up
+    assert first["product-name"] == "Pikachu ex [1st Edition] #57" and first["price-in-pennies"] == "0"
+    assert unpriced["notes"] == "gift" and unpriced["date-purchased"] == "2025-01-02"
+    assert (accent["product-name"], accent["console-name"]) == ("Flabebe #81", "Pokemon Card 151")     # ASCII; number from the id
 
 
 # ---- routes ----------------------------------------------------------------------------
@@ -229,7 +198,7 @@ def test_maintenance_is_owner_only(client, login, stub):
     login()
     for role in ("viewer", "editor"):
         stub["role"] = role
-        for path in ("/", "/export.csv", "/export.json", "/export-pricecharting.csv", "/export-pricecharting-unmatched.csv"):
+        for path in ("/", "/export.csv", "/export.json", "/export-pricecharting.csv"):
             assert client.get(BASE + path).status_code == 403
         assert client.post(BASE + "/import").status_code == 403
         assert b"Maintenance" not in client.get("/c/ash-s-cards/").data
@@ -253,12 +222,9 @@ def test_exports_download_with_the_right_types(client, login, stub, app, tmp_pat
     assert csv_resp.mimetype == "text/csv" and "ash-s-cards-" in csv_resp.headers["Content-Disposition"]
     assert b"sv8-057" in csv_resp.data
     assert json.loads(client.get(BASE + "/export.json").data)["cards"][0]["card_id"] == "sv8-057"
-    assert client.get(BASE + "/export-pricecharting.csv").status_code == 302              # no product list loaded yet
-    stub["pc_products"] = [(111, "Pokemon Surging Sparks", "Pikachu ex #57")]
     pc = client.get(BASE + "/export-pricecharting.csv")
     assert pc.mimetype == "text/csv" and "ash-s-cards-pricecharting-" in pc.headers["Content-Disposition"]
-    first, row = pc.data.decode().splitlines()[:2]
-    assert first.startswith("id,product-name,console-name,price-in-pennies") and row.startswith("111,Pikachu ex #57,Pokemon Surging Sparks,450")
+    assert pc.data.decode().splitlines()[0].startswith("id,product-name,console-name,price-in-pennies")
     assert client.get(BASE + "/export.zip").status_code == 404
 
 
@@ -310,21 +276,3 @@ def test_price_section_reports_the_last_run(client, login, stub):
     assert "Last run: 3 priced" in html and "1 via PokeWallet" in html and "Only the first 15" in html
     stub["bulk"]["status"] = "running"
     assert "Refreshing now: 4 of 4" in client.get(BASE + "/").data.decode()
-
-
-def test_pricecharting_product_list_upload_and_status(client, login, stub):
-    login()
-    stub["role"] = "owner"
-    assert b"Load a PriceCharting product list below first" in client.get(BASE + "/").data
-    resp = client.post(BASE + "/pricecharting-products", data={"products": (io.BytesIO(
-        b"id,console-name,product-name\n111,Pokemon Surging Sparks,Pikachu ex #57\n5,Game Boy,Tetris\n"), "guide.csv")},
-        content_type="multipart/form-data", follow_redirects=True)
-    assert b"Loaded 1 PriceCharting Pokemon products (skipped 1 other rows)" in resp.data
-    assert stub["pc_products"] == [(111, "Pokemon Surging Sparks", "Pikachu ex #57")]
-    assert b"1 of 1 entries match a PriceCharting product" in client.get(BASE + "/").data
-    bad = client.post(BASE + "/pricecharting-products", data={"products": (io.BytesIO(b"a,b\n1,2\n"), "x.csv")},
-                      content_type="multipart/form-data", follow_redirects=True)
-    assert b"look like a PriceCharting file" in bad.data
-    assert client.post(BASE + "/pricecharting-products").status_code == 302                  # no file chosen
-    unmatched = client.get(BASE + "/export-pricecharting-unmatched.csv")
-    assert unmatched.data.decode().splitlines() == ["id,product-name,console-name,quantity,variant,card_id"]   # all matched
