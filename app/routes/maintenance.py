@@ -8,7 +8,7 @@ from datetime import date
 from flask import (Blueprint, Response, current_app, flash, g, redirect,
                    render_template, request, send_file, url_for)
 
-from .. import catalog_service as service, exporter, images, importer, owned_repository as owned
+from .. import catalog_service as service, exporter, images, importer, owned_repository as owned, pricecharting
 from ..permissions import collection_access
 from ..tcgdex import TCGdexError
 
@@ -34,7 +34,17 @@ def index():
         "maintenance.html", stats=owned.stats(cid), art_bytes=images.catalog_usage(),
         price_info=owned.price_overview(cid), price_run=service.bulk_status(cid),
         fallback_on=service.prices_configured(), fallback_max=current_app.config["PRICE_FALLBACK_MAX"],
+        pc=_pc_status(cid),
     )
+
+
+def _pc_status(cid: int) -> dict:
+    """How many PriceCharting products are loaded and how many owned entries match one."""
+    known = pricecharting.count()
+    if not known:
+        return {"known": 0, "matched": 0, "unmatched": 0}
+    matched, unmatched = pricecharting.match_all(owned.all_owned(cid), pricecharting.all_products())
+    return {"known": known, "matched": len(matched), "unmatched": len(unmatched)}
 
 
 @bp.post("/refresh-prices")
@@ -62,9 +72,45 @@ def export_csv():
 @bp.get("/export-pricecharting.csv")
 @collection_access("owner")
 def export_pricecharting():
-    """The collection as a PriceCharting.com import file (separate from this app's own CSV)."""
-    return _download(exporter.to_pricecharting_csv(owned.all_owned(g.collection["id"])), "text/csv; charset=utf-8",
-                     "csv", prefix="pricecharting-")
+    """The collection as a PriceCharting.com import file (separate from this app's own CSV). Needs their product ids."""
+    products = pricecharting.all_products()
+    if not products:
+        flash("Load a PriceCharting product list first: their import needs PriceCharting's own id on every row.", "error")
+        return redirect(url_for("maintenance.index"))
+    matched, _ = pricecharting.match_all(owned.all_owned(g.collection["id"]), products)
+    if not matched:
+        flash("None of your cards matched the PriceCharting products that are loaded.", "error")
+        return redirect(url_for("maintenance.index"))
+    return _download(exporter.to_pricecharting_csv(matched), "text/csv; charset=utf-8", "csv", prefix="pricecharting-")
+
+
+@bp.get("/export-pricecharting-unmatched.csv")
+@collection_access("owner")
+def export_pricecharting_unmatched():
+    """Entries that have no PriceCharting match yet: fill in the id column and load the file back in."""
+    _, unmatched = pricecharting.match_all(owned.all_owned(g.collection["id"]), pricecharting.all_products())
+    return _download(pricecharting.to_unmatched_csv(unmatched), "text/csv; charset=utf-8", "csv", prefix="pricecharting-unmatched-")
+
+
+@bp.post("/pricecharting-products")
+@collection_access("owner")
+def load_pricecharting_products():
+    upload = request.files.get("products")
+    if not upload or not upload.filename:
+        flash("Choose a PriceCharting CSV file to load.", "error")
+        return redirect(url_for("maintenance.index"))
+    try:
+        products, skipped = pricecharting.parse_products(upload.stream)
+    except pricecharting.ProductFileError as exc:
+        flash(str(exc), "error")
+        return redirect(url_for("maintenance.index"))
+    if not products:
+        flash("That file has no Pokemon products with an id, so nothing was loaded.", "error")
+        return redirect(url_for("maintenance.index"))
+    pricecharting.save_products(products)
+    flash(f"Loaded {len(products):,} PriceCharting Pokemon products"
+          + (f" (skipped {skipped:,} other rows)." if skipped else "."), "success")
+    return redirect(url_for("maintenance.index"))
 
 
 @bp.get("/export.json")

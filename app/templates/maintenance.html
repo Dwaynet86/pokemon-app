@@ -52,8 +52,10 @@
       <a class="btn" href="{{ url_for('maintenance.export_csv') }}">Download CSV</a>
     </li>
     <li>
-      <div><strong>PriceCharting (CSV)</strong><span>One row per card and finish, formatted for PriceCharting.com's collection import. Reverse holos are tagged [Reverse Holo]; condition is sent as Ungraded.</span></div>
-      <a class="btn" href="{{ url_for('maintenance.export_pricecharting') }}">Download for PriceCharting</a>
+      <div><strong>PriceCharting (CSV)</strong><span>One row per card and finish, for PriceCharting.com's collection import (condition: Ungraded).
+        {% if pc.known %}{{ pc.matched }} of {{ pc.matched + pc.unmatched }} entries match a PriceCharting product{% if pc.unmatched %}; <a href="{{ url_for('maintenance.export_pricecharting_unmatched') }}">list the {{ pc.unmatched }} that don't</a>{% endif %}.
+        {% else %}Load a PriceCharting product list below first: their import needs their own id for every card.{% endif %}</span></div>
+      {% if pc.known %}<a class="btn" href="{{ url_for('maintenance.export_pricecharting') }}">Download for PriceCharting</a>{% endif %}
     </li>
     <li>
       <div><strong>Backup (JSON)</strong><span>Your whole collection as structured data. Can be imported again.</span></div>
@@ -61,6 +63,16 @@
     </li>
   </ul>
 </section>
+
+<form class="panel form" method="post" action="{{ url_for('maintenance.load_pricecharting_products') }}" enctype="multipart/form-data">
+  {{ csrf_field() }}
+  <h2>PriceCharting product list</h2>
+  <p>PriceCharting's import only accepts its own product id (the <em>PriceCharting ID</em> on each item's page), which we can't work out from a card. Load a CSV that has <code>id</code>, <code>console-name</code> and <code>product-name</code> columns: their price guide download, or a collection export from PriceCharting. Cards are then matched by name and expansion.
+    {% if pc.known %}<strong>{{ pc.known|string }} products loaded.</strong> Loading another file adds to them.{% endif %}</p>
+  <input type="file" name="products" accept=".csv,text/csv" required>
+  <p class="hint">Cards that still don't match can be listed from the export above. Fill in the <code>id</code> column of that file from each item's PriceCharting page, then load it here.</p>
+  <div class="actions"><button class="btn btn-primary" type="submit">Load products</button></div>
+</form>
 
 <form class="panel form" method="post" action="{{ url_for('maintenance.import_backup') }}" enctype="multipart/form-data">
   {{ csrf_field() }}

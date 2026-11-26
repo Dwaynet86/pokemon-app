@@ -102,23 +102,20 @@ def _pennies(price) -> int:
     return int((Decimal(str(price)) * 100).quantize(Decimal(1), rounding=ROUND_HALF_UP))
 
 
-def to_pricecharting_csv(rows: list[dict]) -> bytes:
-    """One row per owned entry (card + finish + condition, with its quantity) in PriceCharting's collection-import format.
+def to_pricecharting_csv(matches: list[tuple[dict, tuple]]) -> bytes:
+    """PriceCharting collection-import file. `matches` is [(owned row, (product id, console-name, product-name))]:
+    PriceCharting's import requires its own product id on every row (see pricecharting.py for how we find them).
 
-    Plain UTF-8 with no byte-order mark, since PriceCharting reads the first header literally. Prices are our market price
-    for the finish; a card with no price yet is exported at 0.
+    One row per owned entry (card + finish + condition, with its quantity). Plain UTF-8, no byte-order mark. Prices are our
+    market price for the finish (0 when there isn't one yet). Condition is always Ungraded (id 1), the import's default.
     """
     buf = io.StringIO()
     writer = csv.writer(buf, lineterminator="\n")
     writer.writerow(PRICECHARTING_FIELDS)
     include, condition, condition_id = PRICECHARTING_CONDITION
-    for row in rows:
-        tag = PRICECHARTING_TAGS.get(row.get("variant") or "")
-        name = f"{_ascii(row.get('name'))}{f' [{tag}]' if tag else ''} #{_pc_number(row)}"
-        set_name = _ascii(row.get("set_name"))
-        console = set_name if set_name.lower().startswith("pokemon") else f"Pokemon {set_name}".strip()
-        notes = _cell(row.get("notes")) if row.get("notes") else ""
-        writer.writerow(["", name, console, _pennies(row.get("unit_price")), include, condition, condition_id, "", notes, 0,
-                         row.get("quantity") or 1, _pc_date(row.get("created_at")), _pc_date(row.get("acquired_on")),
+    for row, (pc_id, console, product) in matches:
+        notes = _cell(row.get("notes"))[:300] if row.get("notes") else ""             # PriceCharting allows 300 characters
+        writer.writerow([pc_id, product, console, _pennies(row.get("unit_price")), include, condition, condition_id, "", notes,
+                         0, row.get("quantity") or 1, _pc_date(row.get("created_at")), _pc_date(row.get("acquired_on")),
                          "", "", ""])
     return buf.getvalue().encode("utf-8")

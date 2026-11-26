@@ -83,6 +83,9 @@ def stub(tmp_path, app):
                                                        "rarities": ["Double Rare"], "variants": ["Holofoil"]},
         "owned_repository.stats": lambda cid: {"copies": 2, "unique_cards": 1, "sets": 1, "species": 1,
                                               "value": Decimal("9.00")},
+        "pricecharting.count": lambda: len(state.get("pc_products", [])),
+        "pricecharting.all_products": lambda: list(state.get("pc_products", [])),
+        "pricecharting.save_products": lambda products: state.__setitem__("pc_products", list(products)),
         "wanted_repository.wanted_ids": lambda cid, set_pk=None: set(state["wanted"]),
         "wanted_repository.is_wanted": lambda cid, card_id: card_id in state["wanted"],
         "wanted_repository.toggle": lambda cid, card_id: (state["wanted"].remove(card_id) or False) if card_id in state["wanted"]

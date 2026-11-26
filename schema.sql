@@ -138,6 +138,13 @@ CREATE INDEX IF NOT EXISTS owned_cards_created_idx    ON owned_cards (collection
 -- Master-set mode: count every finish of a card (normal, holo, reverse holo) toward completion, not just the card.
 ALTER TABLE collections ADD COLUMN IF NOT EXISTS master_set BOOLEAN NOT NULL DEFAULT FALSE;
 
+-- PriceCharting product ids (for the PriceCharting export). Loaded from a PriceCharting CSV on the Maintenance page.
+CREATE TABLE IF NOT EXISTS pricecharting_products (
+    id           BIGINT PRIMARY KEY,
+    console_name TEXT NOT NULL,
+    product_name TEXT NOT NULL
+);
+
 -- ---- Wanted list: cards a collection is still looking for ----------------------------------
 -- Shown on the collection's Wanted page and, when `wanted_public` is on, on a public page that
 -- needs no login. A card leaves the list automatically once a copy is added.
