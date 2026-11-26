@@ -52,6 +52,10 @@
       <a class="btn" href="{{ url_for('maintenance.export_csv') }}">Download CSV</a>
     </li>
     <li>
+      <div><strong>PriceCharting (CSV)</strong><span>One row per card and finish, formatted for PriceCharting.com's collection import. Reverse holos are tagged [Reverse Holo]; condition is sent as Ungraded.</span></div>
+      <a class="btn" href="{{ url_for('maintenance.export_pricecharting') }}">Download for PriceCharting</a>
+    </li>
+    <li>
       <div><strong>Backup (JSON)</strong><span>Your whole collection as structured data. Can be imported again.</span></div>
       <a class="btn btn-primary" href="{{ url_for('maintenance.export_json') }}">Download JSON</a>
     </li>

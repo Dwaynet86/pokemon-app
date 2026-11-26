@@ -15,14 +15,14 @@ from ..tcgdex import TCGdexError
 bp = Blueprint("maintenance", __name__)
 
 
-def _filename(ext: str) -> str:
-    return f"{g.collection['slug']}-{date.today().isoformat()}.{ext}"
+def _filename(ext: str, prefix: str = "") -> str:
+    return f"{g.collection['slug']}-{prefix}{date.today().isoformat()}.{ext}"
 
 
-def _download(body: bytes | str, mimetype: str, ext: str) -> Response:
+def _download(body: bytes | str, mimetype: str, ext: str, prefix: str = "") -> Response:
     return Response(
         body, mimetype=mimetype,
-        headers={"Content-Disposition": f'attachment; filename="{_filename(ext)}"'},
+        headers={"Content-Disposition": f'attachment; filename="{_filename(ext, prefix)}"'},
     )
 
 
@@ -57,6 +57,14 @@ def refresh_prices():
 @collection_access("owner")
 def export_csv():
     return _download(exporter.to_csv(owned.all_owned(g.collection["id"])), "text/csv; charset=utf-8", "csv")
+
+
+@bp.get("/export-pricecharting.csv")
+@collection_access("owner")
+def export_pricecharting():
+    """The collection as a PriceCharting.com import file (separate from this app's own CSV)."""
+    return _download(exporter.to_pricecharting_csv(owned.all_owned(g.collection["id"])), "text/csv; charset=utf-8",
+                     "csv", prefix="pricecharting-")
 
 
 @bp.get("/export.json")
