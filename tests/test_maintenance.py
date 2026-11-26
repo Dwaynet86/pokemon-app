@@ -152,44 +152,18 @@ def test_old_backup_zip_with_photos_restores_without_them(app, tmp_path):
     assert not list(tmp_path.rglob("*.webp"))                      # the photo in the ZIP is ignored
 
 
-def pc_rows(*rows):
-    import csv as _csv
-    out = exporter.to_pricecharting_csv(list(rows)).decode()
-    return list(_csv.DictReader(io.StringIO(out)))
-
-
-def test_pricecharting_header_matches_their_sample_export():
-    raw = exporter.to_pricecharting_csv([])
-    assert not raw.startswith(b"\xef\xbb\xbf")                        # no BOM: the first header must read literally
-    assert raw.decode().strip() == ("id,product-name,console-name,price-in-pennies,include-string,condition-string,condition-id,"
-                                    "sku,notes,cost-basis-in-pennies,quantity,date-entered,date-purchased,grading-company,"
-                                    "grading-cert-id,folder")
-
-
-def test_pricecharting_row_matches_their_sample_format():
-    # Their sample: "Vulpix #9, Pokemon 30th Celebration, 114, Ungraded, Normal wear, 1, ..., 0, 1, 2026-11-26"
-    row = {**OWNED, "name": "Vulpix", "card_number": "009/030", "set_name": "30th Celebration", "variant": "Normal",
-           "unit_price": Decimal("1.14"), "quantity": 1, "notes": None, "acquired_on": None,
-           "created_at": datetime(2026, 11, 26, 3, 0, tzinfo=timezone.utc)}
-    (r,) = pc_rows(row)
-    assert (r["product-name"], r["console-name"], r["price-in-pennies"]) == ("Vulpix #9", "Pokemon 30th Celebration", "114")
-    assert (r["include-string"], r["condition-string"], r["condition-id"]) == ("Ungraded", "Normal wear", "1")
-    assert (r["cost-basis-in-pennies"], r["quantity"], r["date-entered"], r["date-purchased"]) == ("0", "1", "2026-11-26", "")
-
-
-def test_pricecharting_finish_tags_prices_quantities_and_names():
-    base = {**OWNED, "card_number": "57/191", "set_name": "Surging Sparks", "notes": "gift", "acquired_on": date(2025, 1, 2)}
-    holo, rev, first, unpriced, accent = pc_rows(
-        {**base, "variant": "Holofoil", "unit_price": Decimal("4.5"), "quantity": 2},
-        {**base, "variant": "Reverse Holofoil", "unit_price": Decimal("0.995")},
-        {**base, "variant": "1st Edition Holofoil", "unit_price": None},
-        {**base, "variant": "Normal", "unit_price": None},
-        {**base, "name": "Flabébé", "card_number": None, "card_id": "sv1-081", "set_name": "Pokémon Card 151", "unit_price": None})
-    assert holo["product-name"] == "Pikachu ex #57" and holo["price-in-pennies"] == "450" and holo["quantity"] == "2"
-    assert rev["product-name"] == "Pikachu ex [Reverse Holo] #57" and rev["price-in-pennies"] == "100"   # rounds half up
-    assert first["product-name"] == "Pikachu ex [1st Edition] #57" and first["price-in-pennies"] == "0"
-    assert unpriced["notes"] == "gift" and unpriced["date-purchased"] == "2025-01-02"
-    assert (accent["product-name"], accent["console-name"]) == ("Flabebe #81", "Pokemon Card 151")     # ASCII; number from the id
+def test_pricecharting_export_is_name_number_and_expansion_only():
+    base = {**OWNED, "set_name": "Surging Sparks"}
+    raw = exporter.to_pricecharting_csv([
+        {**base, "name": "Pikachu ex", "card_number": "057/191"},
+        {**base, "name": "Flabébé", "card_number": None, "card_id": "sv3pt5-081", "set_name": "Pokémon Card 151"},
+        {**base, "name": "=Evil()", "card_number": "TG05/TG30"}])
+    assert not raw.startswith(b"\xef\xbb\xbf")                                    # no BOM: the first header reads literally
+    assert raw.decode().splitlines() == ["Card name,Card number,Expansion",
+                                         "Pikachu ex,57,Surging Sparks",             # leading zeros and "/191" dropped
+                                         "Flabebe,81,Pokemon Card 151",              # ASCII; number from the id when missing
+                                         "'=Evil(),TG05,Surging Sparks"]             # formulas neutralised; promo numbers kept
+    assert exporter.to_pricecharting_csv([]).decode().strip() == "Card name,Card number,Expansion"
 
 
 # ---- routes ----------------------------------------------------------------------------
@@ -224,7 +198,7 @@ def test_exports_download_with_the_right_types(client, login, stub, app, tmp_pat
     assert json.loads(client.get(BASE + "/export.json").data)["cards"][0]["card_id"] == "sv8-057"
     pc = client.get(BASE + "/export-pricecharting.csv")
     assert pc.mimetype == "text/csv" and "ash-s-cards-pricecharting-" in pc.headers["Content-Disposition"]
-    assert pc.data.decode().splitlines()[0].startswith("id,product-name,console-name,price-in-pennies")
+    assert pc.data.decode().splitlines() == ["Card name,Card number,Expansion", "Pikachu ex,57,Surging Sparks"]
     assert client.get(BASE + "/export.zip").status_code == 404
 
 
